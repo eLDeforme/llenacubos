@@ -1,5 +1,5 @@
 -- Core game state machine.
--- Handles turns, input validation, scoring, and world visualization.
+-- Handles turns, input validation, scoring, tutorial mode, and world visualization.
 
 local M = {}
 
@@ -19,14 +19,12 @@ local function get_player(name)
 end
 
 local function setup_container()
-    local origin = container_origin
     local sx, sy, sz = container_inner_size.x, container_inner_size.y, container_inner_size.z
 
-    -- Build a simple container with custom standalone nodes.
     for y = 0, sy + 1 do
         for x = -1, sx do
             for z = -1, sz do
-                local p = pos_add(origin, {x = x, y = y, z = z})
+                local p = pos_add(container_origin, {x = x, y = y, z = z})
                 local is_wall = (x == -1 or x == sx or z == -1 or z == sz or y == 0 or y == sy + 1)
                 if y == 0 then
                     minetest.set_node(p, {name = "rhythm_memory:floor"})
@@ -41,7 +39,6 @@ local function setup_container()
 end
 
 local function level_to_pos(level)
-    -- Fill bottom-up in row-major order inside 3x5x1 volume => 15 levels.
     local idx = level - 1
     local x = idx % container_inner_size.x
     local y = math.floor(idx / container_inner_size.x)
@@ -51,16 +48,12 @@ end
 local function set_water_level(level)
     for i = 1, 15 do
         local p = level_to_pos(i)
-        if i <= level then
-            minetest.set_node(p, {name = "rhythm_memory:water"})
-        else
-            minetest.set_node(p, {name = "air"})
-        end
+        minetest.set_node(p, {name = i <= level and "rhythm_memory:water" or "air"})
     end
 end
 
 local function feedback(pos, success)
-    local tex = success and "[combine:16x16:0,0=#2f8fd9cc" or "[combine:16x16:0,0=#e74c3ccc"
+    local tex = success and "[combine:16x16:0,0=(#2f8fd9cc)" or "[combine:16x16:0,0=(#e74c3ccc)"
     minetest.add_particlespawner({
         amount = 15,
         time = 0.35,
@@ -91,6 +84,7 @@ local function game_state()
             inputs = {},
             phase = "idle",
             deadline = 0,
+            tutorial_mode = false,
         }
     end
     return rhythm_memory.game
@@ -131,6 +125,7 @@ local function next_turn()
             rhythm_memory.hud.set_sequence(player, g.hud[name], g.sequence)
             rhythm_memory.hud.set_status(player, g.hud[name], "Watch the sequence...", 0x99CCFF)
         end
+
         g.inputs[name] = {
             expected = rhythm_memory.sequence.to_player_keys(g.sequence, idx),
             entered = {},
@@ -142,6 +137,7 @@ local function next_turn()
         if g.turn == 0 or g.phase ~= "show" then
             return
         end
+
         g.phase = "input"
         g.deadline = minetest.get_gametime() + INPUT_TIMEOUT
         for _, name in ipairs(g.players) do
@@ -196,7 +192,6 @@ local function evaluate_turn()
     set_water_level(g.water_level)
     refresh_scores()
 
-    -- Base game is 15 turns; sudden death continues while container is not full.
     if g.turn >= MAX_BASE_TURNS and (g.water_level >= 15 or g.turn >= MAX_TOTAL_TURNS) then
         minetest.after(1.5, M.finish_match)
     else
@@ -214,16 +209,26 @@ function M.try_auto_add(name)
             return
         end
     end
+
     table.insert(g.players, name)
-    g.score[name] = 0
+    g.score[name] = g.score[name] or 0
 
     local player = get_player(name)
-    if player then
+    if player and not g.hud[name] then
         g.hud[name] = rhythm_memory.hud.create(player)
     end
 
     broadcast(name .. " joined the rhythm game (" .. #g.players .. "/2).")
-    if #g.players == 2 then
+
+    -- If tutorial is running and a second player joins, restart as versus mode.
+    if #g.players == 2 and g.phase ~= "idle" then
+        broadcast("Second player joined: switching to 2-player match...")
+        g.phase = "idle"
+        g.turn = 0
+        g.water_level = 0
+        set_water_level(0)
+        minetest.after(1.0, M.start_match)
+    elseif #g.players == 2 and g.phase == "idle" then
         M.start_match()
     end
 end
@@ -251,6 +256,7 @@ function M.remove_player(name)
             break
         end
     end
+
     local player = get_player(name)
     if player and g.hud[name] then
         rhythm_memory.hud.remove(player, g.hud[name])
@@ -269,9 +275,11 @@ end
 
 function M.start_match()
     local g = game_state()
-    if #g.players < 2 then
-        return false, "Need exactly 2 players."
+    if #g.players < 1 then
+        return false, "Need at least 1 player."
     end
+
+    g.tutorial_mode = (#g.players == 1)
 
     setup_container()
     set_water_level(0)
@@ -287,14 +295,15 @@ function M.start_match()
             g.hud[name] = rhythm_memory.hud.create(player)
         end
         if player and g.hud[name] then
-            rhythm_memory.hud.set_status(player, g.hud[name], "Match starting...", 0xFFFFFF)
+            local mode_text = g.tutorial_mode and "Tutorial mode (1 player)" or "Versus mode (2 players)"
+            rhythm_memory.hud.set_status(player, g.hud[name], mode_text, 0xFFFFFF)
             rhythm_memory.hud.set_sequence(player, g.hud[name], {"L", "R", "L"})
         end
     end
 
     refresh_scores()
     minetest.after(1.5, next_turn)
-    return true, "Rhythm match started."
+    return true, g.tutorial_mode and "Tutorial started." or "2-player match started."
 end
 
 function M.handle_input(name, key)
@@ -320,7 +329,6 @@ function M.handle_input(name, key)
     end
 
     table.insert(slot.entered, key)
-
     if #slot.entered >= #slot.expected then
         slot.done = true
     end
@@ -344,20 +352,28 @@ function M.finish_match()
     local g = game_state()
     g.phase = "idle"
 
-    local p1, p2 = g.players[1], g.players[2]
-    local s1 = p1 and (g.score[p1] or 0) or 0
-    local s2 = p2 and (g.score[p2] or 0) or 0
-
     local result
-    if s1 > s2 then
-        result = p1 .. " wins!"
-    elseif s2 > s1 then
-        result = p2 .. " wins!"
+    if #g.players == 1 then
+        local p1 = g.players[1]
+        local s1 = p1 and (g.score[p1] or 0) or 0
+        result = string.format("Tutorial finished! Score: %d", s1)
     else
-        result = "Draw!"
+        local p1, p2 = g.players[1], g.players[2]
+        local s1 = p1 and (g.score[p1] or 0) or 0
+        local s2 = p2 and (g.score[p2] or 0) or 0
+
+        if s1 > s2 then
+            result = p1 .. " wins!"
+        elseif s2 > s1 then
+            result = p2 .. " wins!"
+        else
+            result = "Draw!"
+        end
+
+        result = string.format("%s (%d - %d)", result, s1, s2)
     end
 
-    broadcast(string.format("Match over after %d turns. %s (%d - %d)", g.turn, result, s1, s2))
+    broadcast(string.format("Match over after %d turns. %s", g.turn, result))
 
     for _, name in ipairs(g.players) do
         local player = get_player(name)

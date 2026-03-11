@@ -17,7 +17,7 @@ end
 function M.create(player)
     local pmeta = {
         title = player:hud_add({
-            hud_elem_type = "text",
+            type = "text",
             position = {x = 0.5, y = 0.1},
             text = "Rhythm Memory",
             number = 0xFFFFFF,
@@ -25,7 +25,7 @@ function M.create(player)
             alignment = {x = 0, y = 0},
         }),
         sequence = player:hud_add({
-            hud_elem_type = "text",
+            type = "text",
             position = {x = 0.5, y = 0.16},
             text = "Waiting for players...",
             number = 0x88CCFF,
@@ -33,7 +33,7 @@ function M.create(player)
             alignment = {x = 0, y = 0},
         }),
         score = player:hud_add({
-            hud_elem_type = "text",
+            type = "text",
             position = {x = 0.5, y = 0.22},
             text = "Score: 0",
             number = 0xAAFFAA,
@@ -41,7 +41,7 @@ function M.create(player)
             alignment = {x = 0, y = 0},
         }),
         status = player:hud_add({
-            hud_elem_type = "text",
+            type = "text",
             position = {x = 0.5, y = 0.28},
             text = "",
             number = 0xFFFFAA,
