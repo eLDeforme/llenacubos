@@ -2,7 +2,7 @@
 --
 -- We generate left/right steps with symbols bound to each player's keys:
 --   Player 1: w (left), y (right)
---   Player 2: i (left), p (right)
+--   Player 2: u (left), o (right)
 
 local M = {}
 
@@ -33,7 +33,7 @@ function M.to_player_keys(sequence, player_idx)
     if player_idx == 1 then
         mapping = {L = "w", R = "y"}
     else
-        mapping = {L = "i", R = "p"}
+        mapping = {L = "u", R = "o"}
     end
 
     local out = {}

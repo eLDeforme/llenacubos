@@ -67,12 +67,12 @@ minetest.register_chatcommand("rhythm_start", {
 })
 
 minetest.register_chatcommand("press", {
-    params = "<w|y|i|p>",
+    params = "<w|y|u|o>",
     description = "Submit a rhythm step",
     func = function(name, param)
         param = (param or ""):lower():gsub("%s+", "")
         if param == "" then
-            return false, "Use /press <w|y|i|p>"
+            return false, "Use /press <w|y|u|o>"
         end
 
         local ok, msg = rhythm_memory.logic.handle_input(name, param)
@@ -80,7 +80,7 @@ minetest.register_chatcommand("press", {
     end,
 })
 
-for _, key in ipairs({"w", "y", "i", "p"}) do
+for _, key in ipairs({"w", "y", "u", "o"}) do
     minetest.register_chatcommand(key, {
         params = "",
         description = "Alias for /press " .. key,
@@ -90,6 +90,16 @@ for _, key in ipairs({"w", "y", "i", "p"}) do
         end,
     })
 end
+
+-- Allow simple HID streams that send a bare key in chat without slash.
+minetest.register_on_chat_message(function(name, message)
+    local key = (message or ""):lower():gsub("%s+", "")
+    if key == "w" or key == "y" or key == "u" or key == "o" then
+        local ok = rhythm_memory.logic.handle_input(name, key)
+        return ok
+    end
+    return false
+end)
 
 minetest.register_on_leaveplayer(function(player)
     rhythm_memory.logic.remove_player(player:get_player_name())

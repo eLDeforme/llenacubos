@@ -9,6 +9,8 @@ local INPUT_TIMEOUT = 8
 
 local container_origin = {x = 0, y = 1, z = 0}
 local container_inner_size = {x = 3, y = 5, z = 1} -- 15 cells exactly.
+local p1_spawn = {x = -3, y = 2, z = 0}
+local p2_spawn = {x = 6, y = 2, z = 0}
 
 local function pos_add(a, b)
     return {x = a.x + b.x, y = a.y + b.y, z = a.z + b.z}
@@ -16,6 +18,19 @@ end
 
 local function get_player(name)
     return minetest.get_player_by_name(name)
+end
+
+local function setup_arena()
+    -- Wide floor so players never spawn floating in the sky.
+    for x = -10, 12 do
+        for z = -6, 6 do
+            minetest.set_node({x = x, y = 0, z = z}, {name = "rhythm_memory:floor"})
+            minetest.set_node({x = x, y = -1, z = z}, {name = "rhythm_memory:floor"})
+            if x >= -4 and x <= 7 and z >= -1 and z <= 1 then
+                minetest.set_node({x = x, y = 1, z = z}, {name = "air"})
+            end
+        end
+    end
 end
 
 local function setup_container()
@@ -49,6 +64,17 @@ local function set_water_level(level)
     for i = 1, 15 do
         local p = level_to_pos(i)
         minetest.set_node(p, {name = i <= level and "rhythm_memory:water" or "air"})
+    end
+end
+
+local function place_players()
+    local g = rhythm_memory.game
+    for idx, name in ipairs(g.players) do
+        local player = get_player(name)
+        if player then
+            local target = (idx == 1) and p1_spawn or p2_spawn
+            player:set_pos(target)
+        end
     end
 end
 
@@ -143,7 +169,7 @@ local function next_turn()
         for _, name in ipairs(g.players) do
             local player = get_player(name)
             if player and g.hud[name] then
-                rhythm_memory.hud.set_status(player, g.hud[name], "Repeat now! (/press key)", 0xFFFFFF)
+                rhythm_memory.hud.set_status(player, g.hud[name], "Repeat now! (W/Y for P1, U/O for P2)", 0xFFFFFF)
             end
         end
     end)
@@ -220,7 +246,6 @@ function M.try_auto_add(name)
 
     broadcast(name .. " joined the rhythm game (" .. #g.players .. "/2).")
 
-    -- If tutorial is running and a second player joins, restart as versus mode.
     if #g.players == 2 and g.phase ~= "idle" then
         broadcast("Second player joined: switching to 2-player match...")
         g.phase = "idle"
@@ -279,10 +304,16 @@ function M.start_match()
         return false, "Need at least 1 player."
     end
 
+    -- New random seed each game start so sequence changes every new match.
+    math.randomseed(os.time() + minetest.get_us_time())
+    math.random(); math.random(); math.random()
+
     g.tutorial_mode = (#g.players == 1)
 
+    setup_arena()
     setup_container()
     set_water_level(0)
+    place_players()
 
     g.turn = 0
     g.water_level = 0
@@ -324,8 +355,8 @@ function M.handle_input(name, key)
     end
 
     key = (key or ""):lower()
-    if key ~= "w" and key ~= "y" and key ~= "i" and key ~= "p" then
-        return false, "Invalid key. Use w/y/i/p."
+    if key ~= "w" and key ~= "y" and key ~= "u" and key ~= "o" then
+        return false, "Invalid key. Use w/y/u/o."
     end
 
     table.insert(slot.entered, key)
