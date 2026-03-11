@@ -22,16 +22,16 @@ local function setup_container()
     local origin = container_origin
     local sx, sy, sz = container_inner_size.x, container_inner_size.y, container_inner_size.z
 
-    -- Build a simple glass container with stone floor.
+    -- Build a simple container with custom standalone nodes.
     for y = 0, sy + 1 do
         for x = -1, sx do
             for z = -1, sz do
                 local p = pos_add(origin, {x = x, y = y, z = z})
                 local is_wall = (x == -1 or x == sx or z == -1 or z == sz or y == 0 or y == sy + 1)
                 if y == 0 then
-                    minetest.set_node(p, {name = "default:stone"})
+                    minetest.set_node(p, {name = "rhythm_memory:floor"})
                 elseif is_wall then
-                    minetest.set_node(p, {name = "default:glass"})
+                    minetest.set_node(p, {name = "rhythm_memory:container"})
                 else
                     minetest.set_node(p, {name = "air"})
                 end
@@ -52,7 +52,7 @@ local function set_water_level(level)
     for i = 1, 15 do
         local p = level_to_pos(i)
         if i <= level then
-            minetest.set_node(p, {name = "default:water_source"})
+            minetest.set_node(p, {name = "rhythm_memory:water"})
         else
             minetest.set_node(p, {name = "air"})
         end
@@ -60,7 +60,7 @@ local function set_water_level(level)
 end
 
 local function feedback(pos, success)
-    local tex = success and "default_water.png" or "default_lava.png"
+    local tex = success and "[combine:16x16:0,0=#2f8fd9cc" or "[combine:16x16:0,0=#e74c3ccc"
     minetest.add_particlespawner({
         amount = 15,
         time = 0.35,
@@ -76,11 +76,6 @@ local function feedback(pos, success)
         maxsize = 3,
         texture = tex,
         glow = 5,
-    })
-    minetest.sound_play(success and "default_water_footstep" or "default_dig_cracky", {
-        pos = pos,
-        gain = 0.8,
-        max_hear_distance = 20,
     })
 end
 

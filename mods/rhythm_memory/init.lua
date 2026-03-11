@@ -1,5 +1,5 @@
 -- Rhythm Memory mod entry point.
--- Loads modules and registers chat commands for input.
+-- Loads modules, registers lightweight standalone nodes, and chat commands.
 
 local modname = minetest.get_current_modname()
 local modpath = minetest.get_modpath(modname)
@@ -8,6 +8,36 @@ rhythm_memory = {
     players = {},
     game = nil,
 }
+
+-- Register minimal nodes so this game works without the external `default` mod.
+minetest.register_node("rhythm_memory:container", {
+    description = "Container Block",
+    tiles = {"[combine:16x16:0,0=#d9d9d966"},
+    drawtype = "glasslike",
+    paramtype = "light",
+    sunlight_propagates = true,
+    walkable = true,
+    pointable = true,
+    diggable = false,
+    buildable_to = false,
+    groups = {cracky = 3},
+})
+
+minetest.register_node("rhythm_memory:floor", {
+    description = "Floor Block",
+    tiles = {"[combine:16x16:0,0=#6b6b6bff"},
+    is_ground_content = false,
+    groups = {cracky = 3},
+})
+
+minetest.register_node("rhythm_memory:water", {
+    description = "Rhythm Water Cube",
+    tiles = {"[combine:16x16:0,0=#2f8fd9cc"},
+    use_texture_alpha = "blend",
+    paramtype = "light",
+    sunlight_propagates = true,
+    groups = {crumbly = 3},
+})
 
 rhythm_memory.sequence = dofile(modpath .. "/sequence.lua")
 rhythm_memory.hud = dofile(modpath .. "/hud.lua")
